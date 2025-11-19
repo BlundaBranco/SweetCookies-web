@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SweetCookies - Gestión de Pedidos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#fff7ed',
+                            500: '#f97316',
+                            600: '#ea580c',
+                            700: '#c2410c'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        .toast { animation: slideIn 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    </style>
+</head>
+<body class="h-full bg-gradient-to-br from-orange-50 to-pink-50 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300" x-data="app()" x-init="init()">
+    
+    <!-- Notificaciones Toast -->
+    <div class="fixed top-4 right-4 z-50 space-y-2" x-cloak>
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast bg-white dark:bg-gray-800 rounded-lg shadow-lg p-4 max-w-sm border-l-4" 
+                 :class="{'border-green-500': toast.type === 'success', 'border-red-500': toast.type === 'error', 'border-blue-500': toast.type === 'info'}"
+                 x-show="toast.visible"
+                 x-transition.duration.300ms>
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <i class="fas text-xl" :class="{
+                            'fa-check-circle text-green-500': toast.type === 'success',
+                            'fa-exclamation-circle text-red-500': toast.type === 'error',
+                            'fa-info-circle text-blue-500': toast.type === 'info'
+                        }"></i>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100" x-text="toast.message"></p>
+                    </div>
+                    <button @click="toast.visible = false" class="ml-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Header -->
+    <header class="bg-white dark:bg-gray-800 shadow-md transition-colors duration-300">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-cookie-bite text-4xl text-orange-500 dark:text-orange-400"></i>
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">SweetCookies</h1>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">Gestión de Pedidos Profesional</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button @click="toggleDarkMode()" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fas" :class="darkMode ? 'fa-sun' : 'fa-moon'"></i>
+                    </button>
+                    <button @click="vista = 'dashboard'" 
+                            class="px-4 py-2 rounded-lg transition-colors"
+                            :class="vista === 'dashboard' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
+                        <i class="fas fa-chart-line mr-2"></i>Dashboard
+                    </button>
+                    <button @click="vista = 'pedidos'" 
+                            class="px-4 py-2 rounded-lg transition-colors"
+                            :class="vista === 'pedidos' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'">
+                        <i class="fas fa-list mr-2"></i>Pedidos
+                    </button>
+                    <button @click="abrirNuevoPedido()" 
+                            class="px-4 py-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-lg hover:from-orange-600 hover:to-pink-600 transition-all shadow-md">
+                        <i class="fas fa-plus mr-2"></i>Nuevo Pedido
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- Vista Dashboard -->
+        <div x-show="vista === 'dashboard'" x-cloak class="space-y-6">
+            <!-- Tarjetas de Estadísticas -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border-l-4 border-blue-500 transition-colors duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">Total Pedidos</p>
+                            <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1" x-text="estadisticas.total_pedidos"></p>
+                        </div>
+                        <div class="bg-blue-100 dark:bg-blue-900 rounded-full p-3">
+                            <i class="fas fa-shopping-cart text-2xl text-blue-500 dark:text-blue-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border-l-4 border-green-500 transition-colors duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">Recaudado Total</p>
+                            <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1">$<span x-text="estadisticas.total_recaudado.toFixed(2)"></span></p>
+                        </div>
+                        <div class="bg-green-100 dark:bg-green-900 rounded-full p-3">
+                            <i class="fas fa-dollar-sign text-2xl text-green-500 dark:text-green-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border-l-4 border-orange-500 transition-colors duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">Cookies a Producir</p>
+                            <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1" x-text="estadisticas.total_cookies"></p>
+                        </div>
+                        <div class="bg-orange-100 dark:bg-orange-900 rounded-full p-3">
+                            <i class="fas fa-cookie text-2xl text-orange-500 dark:text-orange-400"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border-l-4 border-red-500 transition-colors duration-300">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">Pedidos Pendientes</p>
+                            <p class="text-3xl font-bold text-gray-900 dark:text-white mt-1" x-text="estadisticas.pedidos_pendientes"></p>
+                        </div>
+                        <div class="bg-red-100 dark:bg-red-900 rounded-full p-3">
+                            <i class="fas fa-clock text-2xl text-red-500 dark:text-red-400"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-300">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Producción por Sabor</h3>
+                    <canvas id="chartSabores" height="300"></canvas>
+                </div>
+
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 transition-colors duration-300">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Producción por Día</h3>
+                    <div class="space-y-3 max-h-96 overflow-y-auto">
+                        <template x-for="[dia, sabores] in Object.entries(estadisticas.produccion_por_dia)" :key="dia">
+                            <div class="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-700 transition-colors duration-300">
+                                <h4 class="font-semibold text-gray-800 dark:text-gray-200 mb-2" x-text="'📅 ' + dia"></h4>
+                                <div class="space-y-1">
+                                    <template x-for="[sabor, cantidad] in Object.entries(sabores)" :key="sabor">
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600 dark:text-gray-400" x-text="sabor"></span>
+                                            <span class="font-medium text-gray-900 dark:text-gray-100" x-text="cantidad + ' unidades'"></span>
+                                        </div>
+                                    </template>
+                                    <div class="flex justify-between text-sm pt-2 border-t border-gray-200 dark:border-gray-600 font-semibold">
+                                        <span class="text-gray-800 dark:text-gray-200">Total del día:</span>
+                                        <span class="text-orange-600 dark:text-orange-400" x-text="Object.values(sabores).reduce((a,b) => a+b, 0) + ' cookies'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="Object.keys(estadisticas.produccion_por_dia).length === 0" class="text-center py-8 text-gray-500 dark:text-gray-400">
+                            No hay producción registrada
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista Pedidos -->
+        <div x-show="vista === 'pedidos'" x-cloak>
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-md overflow-hidden transition-colors duration-300">
+                <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Lista de Pedidos</h2>
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                            <input type="text" 
+                                   x-model="busqueda" 
+                                   placeholder="Buscar por cliente o día..."
+                                   class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            <select x-model="filtroPago" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                <option value="">Todos</option>
+                                <option value="pagado">Pagados</option>
+                                <option value="pendiente">Pendientes</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Día</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cliente</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sabores</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cantidad</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Precio</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Envío</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Estado</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="pedido in pedidosFiltrados" :key="pedido.id">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white" x-text="pedido.dia"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300" x-text="pedido.nombre"></td>
+                                    <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-300">
+                                        <span x-text="pedido.items.length === 1 ? pedido.items[0].sabor : 'Múltiple (' + pedido.items.length + ')'"></span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300" x-text="pedido.items.reduce((sum, i) => sum + i.cantidad, 0)"></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400">$<span x-text="pedido.precio_pedido.toFixed(2)"></span></td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">$<span x-text="pedido.precio_envio.toFixed(2)"></span></td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <button @click="togglePago(pedido.id)" class="px-3 py-1 rounded-full text-xs font-semibold transition-all"
+                                                :class="pedido.pago ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-800' : 'bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 hover:bg-yellow-200 dark:hover:bg-yellow-800'">
+                                            <i class="fas mr-1" :class="pedido.pago ? 'fa-check-circle' : 'fa-clock'"></i>
+                                            <span x-text="pedido.pago ? 'Pagado' : 'Pendiente'"></span>
+                                        </button>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                        <button @click="editarPedido(pedido)" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button @click="eliminarPedido(pedido.id)" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                        <button @click="verDetalle(pedido)" class="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-300 transition-colors">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </template>
+                            <tr x-show="pedidosFiltrados.length === 0">
+                                <td colspan="8" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    No se encontraron pedidos
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vista Nuevo/Editar Pedido -->
+        <div x-show="vista === 'nuevo'" x-cloak>
+            <div class="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 transition-colors duration-300">
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-6" x-text="pedidoEditando ? 'Editar Pedido #' + pedidoEditando.id : 'Nuevo Pedido'"></h2>
+                
+                <form @submit.prevent="guardarPedido()" class="space-y-6">
+                    <!-- Datos del Cliente -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Día de Entrega *</label>
+                            <input type="text" 
+                                   x-model="formPedido.dia" 
+                                   required
+                                   placeholder="ej: Lunes 20"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nombre del Cliente *</label>
+                            <input type="text" 
+                                   x-model="formPedido.nombre" 
+                                   required
+                                   placeholder="Nombre completo"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Precio del Pedido ($) *</label>
+                            <input type="number" 
+                                   x-model="formPedido.precio_pedido" 
+                                   required
+                                   step="0.01"
+                                   min="0"
+                                   placeholder="0.00"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Precio del Envío ($)</label>
+                            <input type="number" 
+                                   x-model="formPedido.precio_envio" 
+                                   step="0.01"
+                                   min="0"
+                                   placeholder="0.00"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Dirección</label>
+                            <input type="text" 
+                                   x-model="formPedido.direccion" 
+                                   placeholder="Dirección de entrega"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Horario</label>
+                            <input type="text" 
+                                   x-model="formPedido.horario" 
+                                   placeholder="ej: 14:00-16:00"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                        </div>
+                    </div>
+
+                    <!-- Items del Pedido -->
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-6">
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Items del Pedido</h3>
+                        
+                        <div class="flex flex-col sm:flex-row items-end gap-4 mb-4">
+                            <div class="flex-1 w-full">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sabor</label>
+                                <select x-model="itemTemp.sabor" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                                    <option value="">Seleccionar...</option>
+                                    <template x-for="sabor in sabores" :key="sabor">
+                                        <option :value="sabor" x-text="sabor"></option>
+                                    </template>
+                                </select>
+                            </div>
+                            
+                            <div class="w-full sm:w-32">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Cantidad</label>
+                                <input type="number" 
+                                       x-model="itemTemp.cantidad" 
+                                       min="1"
+                                       placeholder="0"
+                                       class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
+                            </div>
+                            
+                            <button type="button" 
+                                    @click="agregarItem()"
+                                    class="w-full sm:w-auto px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors">
+                                <i class="fas fa-plus mr-2"></i>Agregar
+                            </button>
+                        </div>
+
+                        <!-- Lista de Items -->
+                        <div x-show="formPedido.items.length > 0" class="space-y-2">
+                            <template x-for="(item, index) in formPedido.items" :key="index">
+                                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-4 transition-colors duration-300">
+                                    <div class="flex items-center space-x-4">
+                                        <i class="fas fa-cookie text-orange-500 dark:text-orange-400 text-xl"></i>
+                                        <div>
+                                            <p class="font-medium text-gray-900 dark:text-white" x-text="item.sabor"></p>
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Cantidad: <span x-text="item.cantidad"></span></p>
+                                        </div>
+                                    </div>
+                                    <button type="button" 
+                                            @click="formPedido.items.splice(index, 1)"
+                                            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
+                                        <i class="fas fa-times-circle text-xl"></i>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <p x-show="formPedido.items.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-8">
+                            No hay items agregados. Agrega al menos un sabor.
+                        </p>
+                    </div>
+
+                    <!-- Botones -->
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" 
+                                @click="cancelarEdicion()"
+                                class="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" 
+                                class="px-6 py-2 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-lg hover:from-orange-600 hover:to-pink-600 transition-all shadow-md">
+                            <i class="fas fa-save mr-2"></i>Guardar Pedido
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Detalle Pedido -->
+        <div x-show="modalDetalle" 
+             x-cloak
+             @click.self="modalDetalle = false"
+             class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full p-8 transition-colors duration-300" @click.stop>
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white">Detalle del Pedido</h3>
+                    <button @click="modalDetalle = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+
+                <div x-show="pedidoDetalle" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Cliente</p>
+                            <p class="font-semibold text-gray-900 dark:text-white" x-text="pedidoDetalle?.nombre"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Día de Entrega</p>
+                            <p class="font-semibold text-gray-900 dark:text-white" x-text="pedidoDetalle?.dia"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Precio Pedido</p>
+                            <p class="font-semibold text-green-600 dark:text-green-400">$<span x-text="pedidoDetalle?.precio_pedido.toFixed(2)"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Precio Envío</p>
+                            <p class="font-semibold text-green-600 dark:text-green-400">$<span x-text="pedidoDetalle?.precio_envio.toFixed(2)"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Dirección</p>
+                            <p class="font-semibold text-gray-900 dark:text-white" x-text="pedidoDetalle?.direccion || 'No especificada'"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600 dark:text-gray-400">Horario</p>
+                            <p class="font-semibold text-gray-900 dark:text-white" x-text="pedidoDetalle?.horario || 'No especificado'"></p>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Items del Pedido</p>
+                        <div class="space-y-2">
+                            <template x-for="item in pedidoDetalle?.items" :key="item.sabor">
+                                <div class="flex items-center justify-between bg-gray-50 dark:bg-gray-700 rounded-lg p-3 transition-colors duration-300">
+                                    <span class="font-medium text-gray-900 dark:text-white" x-text="item.sabor"></span>
+                                    <span class="text-gray-600 dark:text-gray-400"><span x-text="item.cantidad"></span> unidades</span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-200 dark:border-gray-700 pt-4 flex items-center justify-between">
+                        <p class="text-lg font-semibold text-gray-900 dark:text-white">Total</p>
+                        <p class="text-2xl font-bold text-green-600 dark:text-green-400">$<span x-text="(pedidoDetalle?.precio_pedido + pedidoDetalle?.precio_envio).toFixed(2)"></span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        function app() {
+            return {
+                vista: 'dashboard',
+                darkMode: false,
+                pedidos: [],
+                estadisticas: {
+                    total_pedidos: 0,
+                    total_recaudado: 0,
+                    total_cookies: 0,
+                    pedidos_pagados: 0,
+                    pedidos_pendientes: 0,
+                    produccion_total: {},
+                    produccion_por_dia: {}
+                },
+                sabores: [],
+                busqueda: '',
+                filtroPago: '',
+                toasts: [],
+                modalDetalle: false,
+                pedidoDetalle: null,
+                pedidoEditando: null,
+                formPedido: {
+                    dia: '',
+                    nombre: '',
+                    precio_pedido: 0,
+                    precio_envio: 0,
+                    direccion: '',
+                    horario: '',
+                    items: []
+                },
+                itemTemp: {
+                    sabor: '',
+                    cantidad: 1
+                },
+                chartSabores: null,
+
+                async init() {
+                    // Cargar preferencia de modo oscuro
+                    const savedDarkMode = localStorage.getItem('darkMode');
+                    if (savedDarkMode !== null) {
+                        this.darkMode = savedDarkMode === 'true';
+                    } else {
+                        // Detectar preferencia del sistema
+                        this.darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    }
+                    this.applyDarkMode();
+
+                    await this.cargarSabores();
+                    await this.cargarPedidos();
+                    await this.cargarEstadisticas();
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('darkMode', this.darkMode);
+                    this.applyDarkMode();
+                    
+                    // Actualizar gráfico si existe
+                    if (this.chartSabores) {
+                        this.crearGraficoSabores();
+                    }
+                },
+
+                applyDarkMode() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+
+                async cargarSabores() {
+                    try {
+                        const response = await fetch('/api/sabores');
+                        const data = await response.json();
+                        if (data.success) {
+                            this.sabores = data.sabores;
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al cargar sabores', 'error');
+                    }
+                },
+
+                async cargarPedidos() {
+                    try {
+                        const response = await fetch('/api/pedidos');
+                        const data = await response.json();
+                        if (data.success) {
+                            this.pedidos = data.pedidos;
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al cargar pedidos', 'error');
+                    }
+                },
+
+                async cargarEstadisticas() {
+                    try {
+                        const response = await fetch('/api/estadisticas');
+                        const data = await response.json();
+                        if (data.success) {
+                            this.estadisticas = data.estadisticas;
+                            this.$nextTick(() => {
+                                this.crearGraficoSabores();
+                            });
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al cargar estadísticas', 'error');
+                    }
+                },
+
+                crearGraficoSabores() {
+                    const ctx = document.getElementById('chartSabores');
+                    if (!ctx) return;
+
+                    if (this.chartSabores) {
+                        this.chartSabores.destroy();
+                    }
+
+                    const sabores = Object.keys(this.estadisticas.produccion_total);
+                    const cantidades = Object.values(this.estadisticas.produccion_total);
+
+                    if (sabores.length === 0) {
+                        return;
+                    }
+
+                    const colores = [
+                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                        '#FF9F40', '#FF6384', '#C9CBCF', '#4BC0C0', '#FF6384', '#36A2EB'
+                    ];
+
+                    const isDark = this.darkMode;
+
+                    this.chartSabores = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: sabores,
+                            datasets: [{
+                                data: cantidades,
+                                backgroundColor: colores,
+                                borderWidth: 2,
+                                borderColor: isDark ? '#1f2937' : '#fff'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'right',
+                                    labels: {
+                                        padding: 15,
+                                        font: { size: 12 },
+                                        color: isDark ? '#e5e7eb' : '#374151'
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return context.label + ': ' + context.parsed + ' cookies';
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                },
+
+                get pedidosFiltrados() {
+                    let filtered = this.pedidos;
+
+                    if (this.busqueda) {
+                        const busquedaLower = this.busqueda.toLowerCase();
+                        filtered = filtered.filter(p => 
+                            p.nombre.toLowerCase().includes(busquedaLower) ||
+                            p.dia.toLowerCase().includes(busquedaLower)
+                        );
+                    }
+
+                    if (this.filtroPago === 'pagado') {
+                        filtered = filtered.filter(p => p.pago === 1);
+                    } else if (this.filtroPago === 'pendiente') {
+                        filtered = filtered.filter(p => p.pago === 0);
+                    }
+
+                    return filtered;
+                },
+
+                async togglePago(pedidoId) {
+                    try {
+                        const response = await fetch(`/api/pedidos/${pedidoId}/toggle-pago`, {
+                            method: 'POST'
+                        });
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            await this.cargarPedidos();
+                            await this.cargarEstadisticas();
+                            this.mostrarToast('Estado de pago actualizado', 'success');
+                        } else {
+                            this.mostrarToast(data.error, 'error');
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al actualizar estado de pago', 'error');
+                    }
+                },
+
+                abrirNuevoPedido() {
+                    this.cancelarEdicion();
+                    this.vista = 'nuevo';
+                },
+
+                agregarItem() {
+                    if (!this.itemTemp.sabor || !this.itemTemp.cantidad || this.itemTemp.cantidad < 1) {
+                        this.mostrarToast('Seleccione un sabor y cantidad válida', 'error');
+                        return;
+                    }
+
+                    this.formPedido.items.push({
+                        sabor: this.itemTemp.sabor,
+                        cantidad: parseInt(this.itemTemp.cantidad)
+                    });
+
+                    this.itemTemp.sabor = '';
+                    this.itemTemp.cantidad = 1;
+                },
+
+                async guardarPedido() {
+                    if (!this.formPedido.dia || !this.formPedido.nombre) {
+                        this.mostrarToast('Complete los campos obligatorios', 'error');
+                        return;
+                    }
+
+                    if (this.formPedido.items.length === 0) {
+                        this.mostrarToast('Agregue al menos un item al pedido', 'error');
+                        return;
+                    }
+
+                    try {
+                        const url = this.pedidoEditando 
+                            ? `/api/pedidos/${this.pedidoEditando.id}`
+                            : '/api/pedidos';
+                        
+                        const method = this.pedidoEditando ? 'PUT' : 'POST';
+
+                        const response = await fetch(url, {
+                            method: method,
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                ...this.formPedido,
+                                precio_pedido: parseFloat(this.formPedido.precio_pedido) || 0,
+                                precio_envio: parseFloat(this.formPedido.precio_envio) || 0
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.mostrarToast(
+                                this.pedidoEditando ? 'Pedido actualizado' : 'Pedido creado exitosamente',
+                                'success'
+                            );
+                            await this.cargarPedidos();
+                            await this.cargarEstadisticas();
+                            this.cancelarEdicion();
+                            this.vista = 'pedidos';
+                        } else {
+                            this.mostrarToast(data.error, 'error');
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al guardar el pedido', 'error');
+                    }
+                },
+
+                editarPedido(pedido) {
+                    this.pedidoEditando = pedido;
+                    this.formPedido = {
+                        dia: pedido.dia,
+                        nombre: pedido.nombre,
+                        precio_pedido: pedido.precio_pedido,
+                        precio_envio: pedido.precio_envio,
+                        direccion: pedido.direccion || '',
+                        horario: pedido.horario || '',
+                        pago: pedido.pago || 0,
+                        items: JSON.parse(JSON.stringify(pedido.items))
+                    };
+                    this.vista = 'nuevo';
+                },
+
+                cancelarEdicion() {
+                    this.pedidoEditando = null;
+                    this.formPedido = {
+                        dia: '',
+                        nombre: '',
+                        precio_pedido: 0,
+                        precio_envio: 0,
+                        direccion: '',
+                        horario: '',
+                        items: []
+                    };
+                    this.itemTemp = {
+                        sabor: '',
+                        cantidad: 1
+                    };
+                    this.vista = 'pedidos';
+                },
+
+                async eliminarPedido(pedidoId) {
+                    if (!confirm('¿Está seguro de eliminar este pedido?')) {
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/api/pedidos/${pedidoId}`, {
+                            method: 'DELETE'
+                        });
+                        const data = await response.json();
+
+                        if (data.success) {
+                            this.mostrarToast('Pedido eliminado exitosamente', 'success');
+                            await this.cargarPedidos();
+                            await this.cargarEstadisticas();
+                        } else {
+                            this.mostrarToast(data.error, 'error');
+                        }
+                    } catch (error) {
+                        this.mostrarToast('Error al eliminar el pedido', 'error');
+                    }
+                },
+
+                verDetalle(pedido) {
+                    this.pedidoDetalle = pedido;
+                    this.modalDetalle = true;
+                },
+
+                mostrarToast(message, type = 'info') {
+                    const id = Date.now();
+                    const toast = { id, message, type, visible: true };
+                    this.toasts.push(toast);
+
+                    setTimeout(() => {
+                        const index = this.toasts.findIndex(t => t.id === id);
+                        if (index > -1) {
+                            this.toasts[index].visible = false;
+                            setTimeout(() => {
+                                this.toasts.splice(index, 1);
+                            }, 300);
+                        }
+                    }, 4000);
+                }
+            }
+        }
+    </script>
+</body>
+</html>
