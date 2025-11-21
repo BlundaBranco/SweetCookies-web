@@ -108,6 +108,7 @@ sweetcookies-manager/
 ├── Dockerfile         # Configuración de contenedor
 ├── requirements.txt   # Dependencias del proyecto
 └── README.md          # Documentación
+```
 
 ## 📸 Galería de Capturas
 
